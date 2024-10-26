@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Storage DApp 2506</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        #storedValue {
+            font-size: 1.2em;
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Storage DApp 2506</h1>
+        <div id="connectionStatus" class="status disconnected">Checking MetaMask connection...</div>
+        <div>
+            <input type="number" id="valueInput" placeholder="Enter value">
+            <button onclick="storeValue()">Store Value</button>
+            <button onclick="retrieveValue()">Retrieve Value</button>
+        </div>
+        <p id="storedValue"></p>
+    </div>
+
+    <script>
+        const contractAddress = '0x3647ddd47484a30baabc48b81ddd0d7144c957ca';
+        const contractABI = [
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "num",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "store",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "retrieve",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
+
+        let provider;
+        let signer;
+        let storageContract;
+
+        async function init() {
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            if (typeof window.ethereum === 'undefined') {
+                statusDiv.textContent = 'MetaMask not detected! Please install MetaMask.';
+                statusDiv.className = 'status disconnected';
+                return;
+            }
+
+            try {
+                // Request account access
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                storageContract = new ethers.Contract(contractAddress, contractABI, signer);
+                
+                const address = await signer.getAddress();
+                statusDiv.textContent = `Connected to MetaMask! Address: ${address.substring(0,6)}...${address.substring(38)}`;
+                statusDiv.className = 'status connected';
+
+                // Listen for account changes
+                window.ethereum.on('accountsChanged', handleAccountsChanged);
+                window.ethereum.on('chainChanged', () => window.location.reload());
+
+            } catch (error) {
+                console.error('Error initializing DApp:', error);
+                statusDiv.textContent = 'Error connecting to MetaMask. Please try again.';
+                statusDiv.className = 'status disconnected';
+            }
+        }
+
+        async function handleAccountsChanged(accounts) {
+            if (accounts.length === 0) {
+                document.getElementById('connectionStatus').textContent = 'Please connect to MetaMask.';
+                document.getElementById('connectionStatus').className = 'status disconnected';
+            } else {
+                init();
+            }
+        }
+
+        async function storeValue() {
+            if (!storageContract) {
+                alert("Contract not initialized. Please connect MetaMask first.");
+                return;
+            }
+
+            const valueInput = document.getElementById('valueInput');
+            const value = valueInput.value;
+            
+            if (!value) {
+                alert('Please enter a value');
+                return;
+            }
+
+            try {
+                const tx = await storageContract.store(value);
+                valueInput.value = ''; // Clear input
+                document.getElementById('storedValue').textContent = 'Storing value... Please wait for transaction confirmation.';
+                
+                await tx.wait();
+                document.getElementById('storedValue').textContent = `Value ${value} stored successfully!`;
+                
+            } catch (error) {
+                console.error('Error storing value:', error);
+                alert('Error storing value. Check console for details.');
+            }
+        }
+
+        async function retrieveValue() {
+            if (!storageContract) {
+                alert("Contract not initialized. Please connect MetaMask first.");
+                return;
+            }
+
+            try {
+                const value = await storageContract.retrieve();
+                document.getElementById('storedValue').textContent = `Stored Value: ${value.toString()}`;
+            } catch (error) {
+                console.error('Error retrieving value:', error);
+                alert('Error retrieving value. Check console for details.');
+            }
+        }
+
+        // Initialize on window load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
